@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<document type="com.apple.InterfaceBuilder.WatchKit.Storyboard" version="3.0" toolsVersion="15505" targetRuntime="watchKit" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" colorMatched="YES" initialViewController="AgC-eL-Hgc">
+    <device id="watch38"/>
+    <dependencies>
+        <deployment identifier="watchOS"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="15510"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBWatchKitPlugin" version="15501"/>
+    </dependencies>
+    <scenes>
+        <!--MainMenu-->
+        <scene sceneID="aou-V4-d1y">
+            <objects>
+                <controller identifier="MainMenu" title="MainMenu" id="AgC-eL-Hgc" customClass="InterfaceController" customModule="fitness_WatchKit_App" customModuleProvider="target">
+                    <items>
+                        <button width="1" alignment="left" title="Start Workout" id="FgU-wh-IQh">
+                            <connections>
+                                <action selector="startWorkout" destination="AgC-eL-Hgc" id="c2k-sO-bUP"/>
+                                <segue destination="686-QA-SXc" kind="push" id="ivp-cD-lAe"/>
+                            </connections>
+                        </button>
+                    </items>
+                    <connections>
+                        <outlet property="startWorkoutButton" destination="FgU-wh-IQh" id="xDT-hk-5bZ"/>
+                    </connections>
+                </controller>
+            </objects>
+            <point key="canvasLocation" x="-410" y="124"/>
+        </scene>
+        <!--WorkoutScreen-->
+        <scene sceneID="w0x-xB-xFY">
+            <objects>
+                <controller identifier="WorkoutScreen" title="WorkoutScreen" id="686-QA-SXc" customClass="WorkoutScreenInterfaceController" customModule="fitness_WatchKit_Extension">
+                    <items>
+                        <timer width="1" height="32" alignment="left" textAlignment="left" id="a8X-jr-hLZ">
+                            <fontDescription key="font" style="UICTFontTextStyleTitle0"/>
+                        </timer>
+                        <label alignment="left" text="--BPM" id="dJm-hK-A0p"/>
+                        <button width="1" alignment="left" verticalAlignment="bottom" title="End Workout" id="Esv-gW-avU">
+                            <connections>
+                                <action selector="endWorkoutPressed" destination="686-QA-SXc" id="sA3-2J-IqN"/>
+                            </connections>
+                        </button>
+                    </items>
+                    <connections>
+                        <outlet property="displayBPM" destination="dJm-hK-A0p" id="HnY-EL-DDB"/>
+                        <outlet property="displayTimer" destination="a8X-jr-hLZ" id="PhY-ww-Lcm"/>
+                    </connections>
+                </controller>
+            </objects>
+            <point key="canvasLocation" x="-78" y="124"/>
+        </scene>
+    </scenes>
+</document>
