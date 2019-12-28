@@ -15,6 +15,10 @@ struct WorkoutSession {
     var endDate: Date
 }
 
+struct WorkoutData: Codable {
+    let heartRate: Int
+}
+
 class WorkoutScreenInterfaceController: WKInterfaceController {
     
     private var healthStore: HKHealthStore
@@ -145,26 +149,56 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
             
             //DispatchQueue.async(DispatchQueue.main) {
                 
-//                for sample in samples {
-//
-//                    guard let currData:HKQuantitySample = sample as? HKQuantitySample else { return }
-//                    let hr = currData.quantity.doubleValue(for: heartRateUnit)
-//                    print("hr: \(hr)")
-//                    self.displayBPM.setText("\(hr)BPM")
-//                    print("end date: \(currData.endDate)")
-////                    self.ws.startDate = currData.startDate
-//                }
             print("reading samples...")
             if let event = samples.last
             {
                 let hr = event.quantity.doubleValue(for: heartRateUnit)
                 print("\(hr)")
                 self.displayBPM.setText("\(hr)BPM")
+                
+                print("sending data...")
+                self.sendWorkoutData(heartRate: Int(hr))
+                
                 self.ws.startDate = event.endDate
             }
             //}
         }
         print("running query...")
         healthStore.execute(query)
+    }
+    
+    private func sendWorkoutData(heartRate hr: Int) {
+        let data = WorkoutData(heartRate: hr)
+        guard let uploadData = try? JSONEncoder().encode(data) else {
+            print("unable to encode workout data")
+            return
+        }
+        
+        let url = URL(string: "http://cosml-1686857.local:8080/bar")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let task = URLSession.shared.uploadTask(with: request, from: uploadData) { data, response, error in
+            if let error = error {
+                print("error: \(error)")
+                return
+            }
+            if let response = response as? HTTPURLResponse {
+                if !(200...299).contains(response.statusCode) {
+                    print("server error code: \(response.statusCode)")
+                    return
+                } else {
+                    print("success: \(response.statusCode)")
+                }
+                if let mimeType = response.mimeType,
+                    mimeType == "application/json",
+                    let data = data,
+                    let dataString = String(data: data, encoding: .utf8) {
+                    print("got data: \(dataString)")
+                }
+            }
+        }
+        task.resume()
     }
 }
