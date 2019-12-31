@@ -26,6 +26,7 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
     private var workoutIsActive: Bool = false
     private var ws: WorkoutSession
     private var timer: Timer?
+    private var processing: Bool = false
     
     @IBOutlet weak var displayTimer: WKInterfaceTimer!
     @IBOutlet weak var displayBPM: WKInterfaceLabel!
@@ -91,24 +92,51 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
     private func startTrackingWorkout() {
         let conf = HKWorkoutConfiguration()
         conf.activityType = .other
-        do {
-            try session = HKWorkoutSession(healthStore: healthStore, configuration: conf)
-        } catch {
+        
+        guard let session = try? HKWorkoutSession(healthStore: healthStore, configuration: conf) else {
             print("can't create workout session")
             return
         }
-        guard let s = session else {
-            print("can't create workout session")
-            return
-        }
+        
         ws.startDate = Date()
-        s.startActivity(with: ws.startDate)
+        session.startActivity(with: ws.startDate)
         
-        print("started activity with date: \(ws.startDate)")
-        
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true, block: { timer in
-            self.readHeartRateData()
-        })
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+            timer in
+            
+            // check whether the previous operation has finished yet
+            if self.processing {
+                print("request in progress. skipping...")
+                return
+            }
+            // set processing flag to block any concurrent operations
+            self.processing = true
+            
+            self.readHeartRate() {
+                heartRate, error in
+                
+                if let error = error {
+                    print(error)
+                    self.processing = false
+                    return
+                }
+                
+                print("current heart rate: \(heartRate)BPM")
+                self.displayBPM.setText("\(heartRate)BPM")
+                
+                // send heart rate to the server
+                self.sendWorkoutData(heartRate: heartRate) {
+                    error, httpCode in
+                    // unblock further heart rate processing
+                    self.processing = false
+                    if let error = error {
+                        print(error)
+                        return
+                    }
+                    print("successfully sent workout data: \(heartRate)")
+                }
+            }
+        }
     }
     
     private func stopTrackingWorkout() {
@@ -125,79 +153,75 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
         session = nil
     }
     
-    private func readHeartRateData() {
+    private func readHeartRate(result: @escaping (Int,String?) -> Void) {
 
-        let heartRateUnit:HKUnit = HKUnit(from: "count/min")
+        let heartRateUnit = HKUnit(from: "count/min")
         let predicate = HKQuery.predicateForSamples(withStart: ws.startDate, end: nil, options: [])
 
         guard let sampleType = HKSampleType.quantityType(forIdentifier: HKQuantityTypeIdentifier.heartRate) else {
-            fatalError("*** This method should never fail ***")
+            result(-1, "can't init quantity type for HKQuantityTypeIdentifier.heartRate")
+            return
         }
         
-        print("query with date \(ws.startDate)")
         let query = HKSampleQuery(sampleType: sampleType, predicate: predicate, limit: Int(HKObjectQueryNoLimit), sortDescriptors: nil) {
             query, results, error in
             
-            if let e = error {
-                print("error: \(e)")
+            if let error = error {
+                result(-1, "\(error)")
                 return
             }
             
             guard let samples = results as? [HKQuantitySample] else {
-                fatalError("cast error");
+                result(-1, "can't convert resulting samples to [HKQuantitySample] type")
+                return
+            }
+
+            if let event = samples.last {
+                // read heart rate with the specified unit
+                let heartRate = event.quantity.doubleValue(for: heartRateUnit)
+                // update 'read from' position
+                self.ws.startDate = event.endDate
+                // return heart rate to the caller
+                result(Int(heartRate), nil)
+                return
             }
             
-            //DispatchQueue.async(DispatchQueue.main) {
-                
-            print("reading samples...")
-            if let event = samples.last
-            {
-                let hr = event.quantity.doubleValue(for: heartRateUnit)
-                print("\(hr)")
-                self.displayBPM.setText("\(hr)BPM")
-                
-                print("sending data...")
-                self.sendWorkoutData(heartRate: Int(hr))
-                
-                self.ws.startDate = event.endDate
-            }
-            //}
+            result(-1, "no heart rate data available")
         }
-        print("running query...")
+        
         healthStore.execute(query)
     }
     
-    private func sendWorkoutData(heartRate hr: Int) {
-        let data = WorkoutData(heartRate: hr)
+    private func sendWorkoutData(heartRate: Int, result: @escaping (String?, Int) -> Void) {
+        
+        let data = WorkoutData(heartRate: heartRate)
         guard let uploadData = try? JSONEncoder().encode(data) else {
-            print("unable to encode workout data")
+            result("unable to encode workout data", -1)
             return
         }
         
         let url = URL(string: "http://cosml-1686857.local:8080/bar")!
-        var request = URLRequest(url: url)
+        
+        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 10.0)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        let task = URLSession.shared.uploadTask(with: request, from: uploadData) { data, response, error in
+        let task = URLSession.shared.uploadTask(with: request, from: uploadData) {
+            data, response, error in
+            
             if let error = error {
-                print("error: \(error)")
+                result("\(error)", -1)
                 return
             }
-            if let response = response as? HTTPURLResponse {
-                if !(200...299).contains(response.statusCode) {
-                    print("server error code: \(response.statusCode)")
-                    return
-                } else {
-                    print("success: \(response.statusCode)")
-                }
-                if let mimeType = response.mimeType,
-                    mimeType == "application/json",
-                    let data = data,
-                    let dataString = String(data: data, encoding: .utf8) {
-                    print("got data: \(dataString)")
-                }
+            guard let response = response as? HTTPURLResponse else {
+                result("can't convert http response to HTTPURLResponse", -1)
+                return
             }
+            if !(200...299).contains(response.statusCode) {
+                result(HTTPURLResponse.localizedString(forStatusCode: response.statusCode), response.statusCode)
+                return
+            }
+            result(nil, response.statusCode)
         }
         task.resume()
     }
