@@ -10,30 +10,26 @@ import WatchKit
 import HealthKit
 import Foundation
 
-struct WorkoutSession {
-    var startDate: Date
-    var endDate: Date
-}
-
-struct WorkoutData: Codable {
-    let heartRate: Int
-}
-
 class WorkoutScreenInterfaceController: WKInterfaceController {
     
     private var healthStore: HKHealthStore
     private var session: HKWorkoutSession?
-    private var workoutIsActive: Bool = false
+//    private var workoutIsActive: Bool = false
     private var ws: WorkoutSession
+    private var wd: WorkoutData
     private var timer: Timer?
     private var processing: Bool = false
+    private var httpSender: HttpSender
     
     @IBOutlet weak var displayTimer: WKInterfaceTimer!
     @IBOutlet weak var displayBPM: WKInterfaceLabel!
     
     override init() {
+        print("WorkoutScreenInterfaceController: init")
         healthStore = HKHealthStore()
-        ws = WorkoutSession(startDate: Date(), endDate: Date())
+        ws = WorkoutSession(startDate: Date(), endDate: Date(), state: "stopped")
+        wd = WorkoutData()
+        httpSender = HttpSender()
         super.init()
     }
     
@@ -55,102 +51,157 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
         print("WorkoutScreenInterfaceController: willActivate")
         // This method is called when watch view controller is about to be visible to user
         super.willActivate()
-        startWorkout()
+        showSpinner(text: "Starting workout...")
+        startWorkout() {
+            error in
+            self.hideSpinner()
+            if let error = error {
+                self.endWorkout(dueToFailure: true) { _ in }
+                print(error)
+                self.showError(error) {
+                    pop()
+                }
+                return
+            }
+        }
     }
 
     override func didDeactivate() {
         print("WorkoutScreenInterfaceController: didDeactivate")
         // This method is called when watch view controller is no longer visible
         super.didDeactivate()
-//        endWorkout()
+//        askToStopWorkout() {
+//            yes in
+//            if yes {
+//
+//            }
+//        }
     }
     
-    private func startWorkout() {
-        if workoutIsActive {
-            return
+    private func startWorkout(result: @escaping (String?) -> Void) {
+        startTrackingWorkout() {
+            error in
+            if let error = error {
+                result(error)
+                return
+            }
+//            self.workoutIsActive = true
+            self.displayTimer.start()
+            result(nil)
         }
-        displayTimer.start()
-        startTrackingWorkout()
-        workoutIsActive = true
     }
     
-    private func endWorkout() {
-        if !workoutIsActive {
-            return
-        }
+    private func endWorkout(dueToFailure: Bool, result: @escaping (String?) -> Void) {
+        stopTrackingWorkout(dueToFailure: dueToFailure, result: result)
         displayTimer.stop()
-        stopTrackingWorkout()
-        workoutIsActive = false
-        
     }
 
     @IBAction func endWorkoutPressed() {
-        pop()
-        endWorkout()
+        showSpinner(text: "finishing workout...")
+        endWorkout(dueToFailure: false) {
+            error in
+            self.hideSpinner()
+            if let error = error {
+                showError(error)
+            }
+            self.reset()
+            self.pop()
+        }
     }
     
-    private func startTrackingWorkout() {
-        let conf = HKWorkoutConfiguration()
-        conf.activityType = .other
-        
-        guard let session = try? HKWorkoutSession(healthStore: healthStore, configuration: conf) else {
-            print("can't create workout session")
-            return
-        }
+    private func startTrackingWorkout(result: @escaping (String?) -> Void) {
         
         ws.startDate = Date()
-        session.startActivity(with: ws.startDate)
+        ws.state = "running"
         
-        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
-            timer in
+        httpSender.sendNow(data: ws) {
+            error, httpCode in
             
-            // check whether the previous operation has finished yet
-            if self.processing {
-                print("request in progress. skipping...")
+            if let error = error {
+                print(error)
+                result("Can't start workout: server unresponsive")
                 return
             }
-            // set processing flag to block any concurrent operations
-            self.processing = true
             
-            self.readHeartRate() {
-                heartRate, error in
+            let conf = HKWorkoutConfiguration()
+            conf.activityType = .other
+            
+            guard let workoutSession = try? HKWorkoutSession(healthStore: self.healthStore, configuration: conf) else {
+                result("can't create workout session")
+                return
+            }
+            
+            workoutSession.startActivity(with: self.ws.startDate)
+            self.session = workoutSession
+            
+            self.timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) {
+                timer in
                 
-                if let error = error {
-                    print(error)
-                    self.processing = false
+                // check whether the previous operation has finished yet
+                if self.processing {
+                    print("request in progress. skipping...")
                     return
                 }
+                // set processing flag to block any concurrent operations
+                self.processing = true
                 
-                print("current heart rate: \(heartRate)BPM")
-                self.displayBPM.setText("\(heartRate)BPM")
-                
-                // send heart rate to the server
-                self.sendWorkoutData(heartRate: heartRate) {
-                    error, httpCode in
-                    // unblock further heart rate processing
-                    self.processing = false
+                self.readHeartRate() {
+                    heartRate, error in
+                    
                     if let error = error {
                         print(error)
+                        self.processing = false
+                        self.displayBPM.setText("--BPM")
                         return
                     }
-                    print("successfully sent workout data: \(heartRate)")
+                    
+                    self.wd.heartRate = heartRate
+                    
+                    print("current heart rate: \(self.wd.heartRate)BPM")
+                    self.displayBPM.setText("\(self.wd.heartRate)BPM")
+                    
+                    // send workout data to the server
+                    self.httpSender.sendNow(data: self.wd) {
+                        error, httpCode in
+                        // unblock further heart rate processing
+                        self.processing = false
+                        if let error = error {
+                            print(error)
+                            return
+                        }
+                        print("successfully sent workout data: \(heartRate)")
+                    }
                 }
             }
+            
+            result(nil)
         }
     }
     
-    private func stopTrackingWorkout() {
-        guard let t = timer else {
-            print("can't cast timer")
+    private func stopTrackingWorkout(dueToFailure: Bool, result: @escaping (String?) -> Void) {
+        if let t = timer {
+            t.invalidate()
+        }
+        if let s = session {
+            let endDate = Date()
+            s.stopActivity(with: endDate)
+            session = nil
+            ws.endDate = endDate
+        }
+        ws.state = "stopped"
+        if !dueToFailure {
+            httpSender.cancelLast()
+            httpSender.sendNow(data: ws) {
+                error, _ in
+                if let error = error {
+                    result(error)
+                    return
+                }
+                result(nil)
+            }
             return
         }
-        t.invalidate()
-        guard let s = session else {
-            print("can't create workout session")
-            return
-        }
-        s.stopActivity(with: Date())
-        session = nil
+        result(nil)
     }
     
     private func readHeartRate(result: @escaping (Int,String?) -> Void) {
@@ -192,21 +243,95 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
         healthStore.execute(query)
     }
     
-    private func sendWorkoutData(heartRate: Int, result: @escaping (String?, Int) -> Void) {
-        
-        let data = WorkoutData(heartRate: heartRate)
-        guard let uploadData = try? JSONEncoder().encode(data) else {
-            result("unable to encode workout data", -1)
-            return
-        }
-        
-        let url = URL(string: "http://cosml-1686857.local:8080/bar")!
-        
-        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 10.0)
+    private func showSpinner(text: String) {
+        presentController(withName: "SpinnerModal", context: text)
+    }
+    
+    private func hideSpinner() {
+        dismiss()
+    }
+    
+//    private func sendWorkoutData(heartRate: Int, result: @escaping (String?, Int) -> Void) {
+//
+//        let data = WorkoutData(data: heartRate)
+//        guard let uploadData = try? JSONEncoder().encode(data) else {
+//            result("unable to encode workout data", -1)
+//            return
+//        }
+//
+//        let url = URL(string: "http://cosml-1686857.local:8080/bar")!
+//
+//        var request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 10.0)
+//        request.httpMethod = "POST"
+//        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+//
+//        let task = URLSession.shared.uploadTask(with: request, from: uploadData) {
+//            data, response, error in
+//
+//            if let error = error {
+//                result("\(error)", -1)
+//                return
+//            }
+//            guard let response = response as? HTTPURLResponse else {
+//                result("can't convert http response to HTTPURLResponse", -1)
+//                return
+//            }
+//            if !(200...299).contains(response.statusCode) {
+//                result(HTTPURLResponse.localizedString(forStatusCode: response.statusCode), response.statusCode)
+//                return
+//            }
+//            result(nil, response.statusCode)
+//        }
+//        task.resume()
+//    }
+}
+
+class HttpSender {
+//    var queue: [TransferData] = []
+    var sending: Bool = false
+    let url = URL(string: "http://cosml-1686857.local:8080/api/v1/workout")!
+    var request: URLRequest
+    var task: URLSessionUploadTask
+    
+    init() {
+        request = URLRequest(url: url, cachePolicy: .useProtocolCachePolicy, timeoutInterval: 10.0)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
-        let task = URLSession.shared.uploadTask(with: request, from: uploadData) {
+        task = URLSessionUploadTask()
+    }
+    
+//    func sendQueued(session: WorkoutSession) {
+//        if sending {
+//            queue.append(session)
+//            return
+//        }
+//        sending = true
+//        send(data: session) {
+//            error, httpCode in
+//            self.sending = false
+//        }
+//    }
+    
+    func sendNow(data: TransferData, result: @escaping (_ error: String?, _ httpCode: Int) -> Void) {
+        sending = true
+        send(data: data) {
+            error, httpCode in
+            self.sending = false
+            result(error, httpCode)
+        }
+    }
+    
+    func cancelLast() {
+        task.cancel()
+    }
+    
+    private func send(data: TransferData, result: @escaping (_ error: String?, _ httpCode: Int) -> Void) {
+        // serialize data to transfer
+        guard let td = serialize(data: data) else {
+            return
+        }
+        // send http request
+        task = URLSession.shared.uploadTask(with: request, from: td) {
             data, response, error in
             
             if let error = error {
@@ -224,5 +349,56 @@ class WorkoutScreenInterfaceController: WKInterfaceController {
             result(nil, response.statusCode)
         }
         task.resume()
+    }
+    
+    private func serialize(data: TransferData) -> Data? {
+        switch data.type() {
+        case .workoutSession:
+            guard let ws = data as? WorkoutSession else {
+                return nil
+            }
+            guard let uploadData = try? JSONEncoder().encode(ws) else {
+                return nil
+            }
+            return uploadData
+        case .workoutData:
+            guard let wd = data as? WorkoutData else {
+                return nil
+            }
+            guard let uploadData = try? JSONEncoder().encode(wd) else {
+                return nil
+            }
+            return uploadData
+        }
+    }
+}
+
+enum TransferDataType {
+    case workoutData, workoutSession
+}
+
+protocol TransferData {
+    func type() -> TransferDataType
+}
+
+struct WorkoutSession: Codable, TransferData {
+    var startDate: Date
+    var endDate: Date
+    var state: String // running, stopped
+    
+    func type() -> TransferDataType {
+        return .workoutSession
+    }
+}
+
+struct WorkoutData: Codable, TransferData {
+    var heartRate: Int
+    
+    init() {
+        self.heartRate = 0
+    }
+    
+    func type() -> TransferDataType {
+        return .workoutData
     }
 }

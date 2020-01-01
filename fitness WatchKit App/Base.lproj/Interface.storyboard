@@ -49,5 +49,23 @@
             </objects>
             <point key="canvasLocation" x="-78" y="124"/>
         </scene>
+        <!--SpinnerModal-->
+        <scene sceneID="yvY-3S-2eJ">
+            <objects>
+                <controller identifier="SpinnerModal" id="fFk-X5-tPA" customClass="SpinnerInterfaceController" customModule="fitness_WatchKit_Extension">
+                    <items>
+                        <label alignment="left" text="Label" id="mLV-If-IeK"/>
+                        <imageView alignment="center" image="gear" catalog="system" id="nNk-M9-Nys"/>
+                    </items>
+                    <connections>
+                        <outlet property="messageLabel" destination="mLV-If-IeK" id="ie1-Ot-e7S"/>
+                    </connections>
+                </controller>
+            </objects>
+            <point key="canvasLocation" x="243" y="124"/>
+        </scene>
     </scenes>
+    <resources>
+        <image name="gear" catalog="system" width="64" height="58"/>
+    </resources>
 </document>
