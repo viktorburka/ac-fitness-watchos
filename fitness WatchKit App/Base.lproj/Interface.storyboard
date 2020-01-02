@@ -64,6 +64,25 @@
             </objects>
             <point key="canvasLocation" x="243" y="124"/>
         </scene>
+        <!--ErrorModal-->
+        <scene sceneID="3bs-MS-xFE">
+            <objects>
+                <controller identifier="ErrorModal" id="ShB-z0-pMt" customClass="ErrorInterfaceController" customModule="fitness_WatchKit_Extension">
+                    <items>
+                        <label alignment="left" text="Label" id="ZwE-fW-YSl"/>
+                        <button width="1" alignment="left" title="Close" id="R1e-BZ-fqr">
+                            <connections>
+                                <action selector="closePressed" destination="ShB-z0-pMt" id="EQh-Xp-sN4"/>
+                            </connections>
+                        </button>
+                    </items>
+                    <connections>
+                        <outlet property="errorLabel" destination="ZwE-fW-YSl" id="MST-6h-F7z"/>
+                    </connections>
+                </controller>
+            </objects>
+            <point key="canvasLocation" x="246" y="421"/>
+        </scene>
     </scenes>
     <resources>
         <image name="gear" catalog="system" width="64" height="58"/>

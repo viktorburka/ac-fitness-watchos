@@ -21,6 +21,7 @@
 		F759D02C23AD8C1300D9B433 /* ExtensionDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F759D02B23AD8C1300D9B433 /* ExtensionDelegate.swift */; };
 		F759D02E23AD8C1300D9B433 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F759D02D23AD8C1300D9B433 /* Assets.xcassets */; };
 		F793495423BD5EDD00DDC7EA /* SpinnerInterfaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F793495323BD5EDD00DDC7EA /* SpinnerInterfaceController.swift */; };
+		F793495623BE5A7200DDC7EA /* ErrorInterfaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F793495523BE5A7200DDC7EA /* ErrorInterfaceController.swift */; };
 		F7A481A923B58DC70077FEA2 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7A481A823B58DC70077FEA2 /* HealthKit.framework */; };
 		F7A481AB23B667FD0077FEA2 /* WorkoutScreenInterfaceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7A481AA23B667FD0077FEA2 /* WorkoutScreenInterfaceController.swift */; };
 		F7A481AE23B67CB40077FEA2 /* HealthKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F7A481AD23B67CB40077FEA2 /* HealthKit.framework */; };
@@ -87,6 +88,7 @@
 		F759D02D23AD8C1300D9B433 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F759D02F23AD8C1300D9B433 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		F793495323BD5EDD00DDC7EA /* SpinnerInterfaceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpinnerInterfaceController.swift; sourceTree = "<group>"; };
+		F793495523BE5A7200DDC7EA /* ErrorInterfaceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorInterfaceController.swift; sourceTree = "<group>"; };
 		F7A481A623B58DC70077FEA2 /* fitness.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = fitness.entitlements; sourceTree = "<group>"; };
 		F7A481A823B58DC70077FEA2 /* HealthKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = HealthKit.framework; path = System/Library/Frameworks/HealthKit.framework; sourceTree = SDKROOT; };
 		F7A481AA23B667FD0077FEA2 /* WorkoutScreenInterfaceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutScreenInterfaceController.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 				F759D02F23AD8C1300D9B433 /* Info.plist */,
 				F7A481AA23B667FD0077FEA2 /* WorkoutScreenInterfaceController.swift */,
 				F793495323BD5EDD00DDC7EA /* SpinnerInterfaceController.swift */,
+				F793495523BE5A7200DDC7EA /* ErrorInterfaceController.swift */,
 			);
 			path = "fitness WatchKit Extension";
 			sourceTree = "<group>";
@@ -327,6 +330,7 @@
 			files = (
 				F7A481AB23B667FD0077FEA2 /* WorkoutScreenInterfaceController.swift in Sources */,
 				F759D02C23AD8C1300D9B433 /* ExtensionDelegate.swift in Sources */,
+				F793495623BE5A7200DDC7EA /* ErrorInterfaceController.swift in Sources */,
 				F793495423BD5EDD00DDC7EA /* SpinnerInterfaceController.swift in Sources */,
 				F759D02A23AD8C1300D9B433 /* InterfaceController.swift in Sources */,
 			);
